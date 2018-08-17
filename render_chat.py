@@ -7,6 +7,10 @@ import time
 
 from yattag import Doc
 
+# Constants
+__SYSTEM__ = "GroupMe"
+FONT_URL = "https://fonts.googleapis.com/css?family=Open+Sans"
+
 
 def css_file():
     return """
@@ -61,8 +65,45 @@ def css_file():
     """
 
 
-# Constants
-__SYSTEM__ = "GroupMe"
+def render_time_message(page_elements, message, prev_time):
+    doc, tag, text = page_elements
+
+    # Handle change in day
+    message_time = time.localtime(message['created_at'])
+
+    if prev_time is None or prev_time.tm_mday != message_time.tm_mday:
+        with tag('div', klass='message_container'):
+            doc.attr(style="background-color: #e4e4e4")
+            with tag('span', klass='system_message'):
+                text(time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+
+    return message_time
+
+
+def render_system_message(page_elements, message):
+    doc, tag, text = page_elements
+
+    message_time = time.localtime(message['created_at'])
+    with tag('div', klass='message_container'):
+        doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+        doc.attr(style="background-color: #e4e4e4")
+        with tag('span', klass='system_message'):
+            text(message['text'] or '<ATTACHMENT>')
+
+
+def render_message(page_elements, people, message):
+    doc, tag, text = page_elements
+
+    message_time = time.localtime(message['created_at'])
+    with tag('div', klass='message_container'):
+        doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+        with tag('div', klass='avatar'):
+            pass
+        with tag('div', klass='message_box'):
+            with tag('span', klass='user'):
+                text(people[message['author']]['name'])
+            with tag('span', klass='message'):
+                text(message['text'] or '<ATTACHMENT>')
 
 
 def main():
@@ -82,46 +123,35 @@ def main():
     with open(os.path.join(args.input_dir, 'messages.json')) as fp:
         messages = json.load(fp)
 
-    doc, tag, text = Doc().tagtext()
+    page_elements = Doc().tagtext()
+    doc, tag, text = page_elements
 
-    prev_message_timestamp = 0
+    prev_time = None
     with tag('html'):
         with tag('head'):
             doc.asis('<meta charset="utf-8">')
-            doc.asis('<link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">')
+            doc.asis('<link href="%s" rel="stylesheet">' % (FONT_URL))
             doc.asis('<link rel="stylesheet" href="main.css">')
         with tag('body'):
             with tag('div', id='container'):
                 with tag('h1'):
                     text('Stuff')
+
+                # Render messages
                 for message in messages:
-                    # Handle change in day
-                    message_time = time.localtime(message['created_at'])
-                    prev_message_time = time.localtime(prev_message_timestamp)
+                    # Check and render time divider
+                    prev_time = render_time_message(page_elements, message,
+                                                    prev_time)
 
-                    if prev_message_timestamp == 0 or prev_message_time.tm_mday != message_time.tm_mday:
-                        with tag('div', klass='message_container'):
-                            doc.attr(style="background-color: #e4e4e4")
-                            with tag('span', klass='system_message'):
-                                text(time.strftime('%b %d, %Y at %-I:%M %p', message_time))
-                    prev_message_timestamp = message['created_at']
+                    # Check message type
+                    if people[message['author']]['name'] == __SYSTEM__:
+                        # Render system message
+                        render_system_message(page_elements, message)
+                    else:
+                        # Render normal message
+                        render_message(page_elements, people, message)
 
-                    # Render message
-                    with tag('div', klass='message_container'):
-                        doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
-                        if people[message['author']]['name'] == __SYSTEM__:
-                            doc.attr(style="background-color: #e4e4e4")
-                            with tag('span', klass='system_message'):
-                                text(message['text'] or 'None')
-                        else:
-                            with tag('div', klass='avatar'):
-                                pass
-                            with tag('div', klass='message_box'):
-                                with tag('span', klass='user'):
-                                    text(people[message['author']]['name'])
-                                with tag('span', klass='message'):
-                                    text(message['text'] or 'None')
-
+    # Save rendered files
     with open(os.path.join(args.input_dir, 'rendered.html'), 'w') as fp:
         fp.write(doc.getvalue())
 
