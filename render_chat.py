@@ -94,6 +94,12 @@ def render_system_message(page_elements, message):
 def render_message(page_elements, people, message):
     doc, tag, text = page_elements
 
+    # Process mentions
+    mentions = []
+    for a in message['attachments']:
+        if a['type'] == "mentions":
+            mentions += a['loci']
+
     message_time = time.localtime(message['created_at'])
     with tag('div', klass='message_container'):
         doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
@@ -103,7 +109,24 @@ def render_message(page_elements, people, message):
             with tag('span', klass='user'):
                 text(people[message['author']]['name'])
             with tag('span', klass='message'):
-                text(message['text'] or '<ATTACHMENT>')
+                full_text = message['text'] or '<ATTACHMENT>'
+                text_parts = []
+                prev_end = 0
+
+                for m in mentions:
+                    start = m[0]
+                    end = start + m[1]
+
+                    text_parts.append((full_text[prev_end:start], 'normal'))
+                    text_parts.append((full_text[start:end], 'bold'))
+                    prev_end = end
+
+                text_parts.append((full_text[prev_end:], 'normal'))
+
+                for t, style in text_parts:
+                    with tag('span'):
+                        doc.attr('style="font-weight: %s;"' % (style))
+                        text(t)
 
 
 def main():
