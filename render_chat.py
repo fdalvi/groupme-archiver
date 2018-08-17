@@ -60,6 +60,10 @@ def css_file():
         margin-right: 10px;
     }
 
+    .message {
+        white-space: pre-line;
+    }
+
     .system_message {
         width: 80%;
 
