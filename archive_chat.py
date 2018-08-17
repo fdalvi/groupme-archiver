@@ -62,11 +62,28 @@ def main():
         params = {
             'token': args.token
         }
-        url = 'https://api.groupme.com/v3/groups/%s/messages' % (args.chat)
+        url = 'https://api.groupme.com/v3/groups/%s' % (args.chat)
         r = requests.get(url, params=params)
 
         people = {}
         messages = []
+        group_info = {}
+
+        response = json.loads(r.content)['response']
+
+        group_info['name'] = response['name']
+        group_info['description'] = response['description']
+        group_info['image_url'] = response['image_url']
+        group_info['created_at'] = response['created_at']
+
+        for member in response['members']:
+            people[member['user_id']] = {
+                'name': member['nickname'],
+                'avatar_url': member['image_url']
+            }
+
+        url = 'https://api.groupme.com/v3/groups/%s/messages' % (args.chat)
+        r = requests.get(url, params=params)
 
         curr_messages = json.loads(r.content)
 
@@ -76,7 +93,7 @@ def main():
         curr_messages = curr_messages['response']['messages']
 
         print("Fetching %d messages..." % (num_total_messages))
-        while True:
+        while num_fetched_messages < num_total_messages:
             num_fetched_messages += len(curr_messages)
             for message in curr_messages:
                 if message['sender_id'] not in people:
@@ -128,6 +145,10 @@ def main():
         # Save messages
         with open(os.path.join(args.output_dir, "messages.json"), 'w', encoding= 'utf-8') as fp:
             json.dump(messages, fp, ensure_ascii=False)
+
+        # Save group information
+        with open(os.path.join(args.output_dir, "group_info.json"), 'w', encoding= 'utf-8') as fp:
+            json.dump(group_info, fp, ensure_ascii=False)
 
 
 
