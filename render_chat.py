@@ -28,7 +28,22 @@ def css_file():
         height: 40px;
         flex-basis: 40px;
         flex-shrink: 0;
-        background-color: red;
+        background-color: #3A61BF;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        color: #FFFFFF;
+
+        border-radius: 50%;
+    }
+
+    .avatar > img {
+        width: 40px;
+        height: 40px;
+
+        border-radius: 50%;
     }
 
     .likes {
@@ -159,6 +174,20 @@ def render_system_message(page_elements, message):
             text(message['text'] or '<ATTACHMENT>')
 
 
+def render_avatar(page_elements, people, message):
+    doc, tag, text = page_elements
+
+    avatar_path = people[message['author']].get('avatar_path', None)
+    if avatar_path:
+        doc.asis('<img src="%s"></img>' % (avatar_path))
+    else:
+        names = people[message['author']]['name'].split()
+        shorthand = names[0][0].upper()
+        if len(names) > 1:
+            shorthand += names[-1][0].upper()
+        text(shorthand)
+
+
 def render_message(page_elements, people, message):
     doc, tag, text = page_elements
 
@@ -172,7 +201,7 @@ def render_message(page_elements, people, message):
     with tag('div', klass='message_container'):
         doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
         with tag('div', klass='avatar'):
-            pass
+            render_avatar(page_elements, people, message)
         with tag('div', klass='message_box'):
             with tag('span', klass='user'):
                 text(people[message['author']]['name'])

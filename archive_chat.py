@@ -44,8 +44,15 @@ def main():
     parser.add_argument('--token', '-t', required=True,
                         help="GroupMe Developer Token")
     parser.add_argument('--chat', '-c', help="Chat ID to archive")
+    parser.add_argument('--num-messages-per-request', '-n', default=20,
+                        dest='num_messages_per_request',
+                        help="Number of messages in each request. Max: 100.")
     parser.add_argument('--output-dir', '-o', dest="output_dir",
                         help="Output directory to store archived content")
+
+    parser.add_argument('--save-global-avatars', action='store_true',
+                        dest='save_global_avatars',
+                        help="Use global instead of chat specific user avatars")
 
     args = parser.parse_args()
 
@@ -104,6 +111,8 @@ def main():
                         'name': message['name'],
                         'avatar_url': message['avatar_url']
                     }
+                if not args.save_global_avatars:
+                    people[message['sender_id']]['avatar_url'] = message['avatar_url']
                 # print("[%s] %s : %s" % (
                 #    message['created_at'], message['name'], message['text']))
                 messages.append({
@@ -118,7 +127,7 @@ def main():
             params = {
                 'token': args.token,
                 'before_id': last_message_id,
-                'limit': 20
+                'limit': args.num_messages_per_request
             }
             url = 'https://api.groupme.com/v3/groups/%s/messages' % (args.chat)
             r = requests.get(url, params=params)
@@ -133,6 +142,18 @@ def main():
         pbar.close()
         messages = list(reversed(messages))
 
+        print("\nFetching avatars...")
+        os.makedirs(os.path.join(args.output_dir, 'avatars/'), exist_ok=True)
+        for k, v in tqdm(people.items()):
+            url = v['avatar_url']
+            if url:
+                r = requests.get("%s.avatar" % (url))
+                img_type = r.headers['content-type'].split('/')[1]
+                avatar_path = 'avatars/%s.avatar.%s' % (k, img_type)
+                with open(os.path.join(args.output_dir, avatar_path), 'wb') as fp:
+                    fp.write(r.content)
+                people[k]['avatar_path'] = avatar_path
+
         print("People:")
         table_headers = {
             "id": "ID",
@@ -142,18 +163,22 @@ def main():
         print(tabulate([dict({'id': k}, **v) for (k, v) in people.items()],
                        headers=table_headers))
 
+        # Save everything
+        people_file = os.path.join(args.output_dir, "people.json")
+        messages_file = os.path.join(args.output_dir, "messages.json")
+        group_info_file = os.path.join(args.output_dir, "group_info.json")
+
         # Save people
-        with open(os.path.join(args.output_dir, "people.json"), 'w', encoding= 'utf-8') as fp:
+        with open(people_file, 'w', encoding='utf-8') as fp:
             json.dump(people, fp, ensure_ascii=False)
 
         # Save messages
-        with open(os.path.join(args.output_dir, "messages.json"), 'w', encoding= 'utf-8') as fp:
+        with open(messages_file, 'w', encoding='utf-8') as fp:
             json.dump(messages, fp, ensure_ascii=False)
 
         # Save group information
-        with open(os.path.join(args.output_dir, "group_info.json"), 'w', encoding= 'utf-8') as fp:
+        with open(group_info_file, 'w', encoding='utf-8') as fp:
             json.dump(group_info, fp, ensure_ascii=False)
-
 
 
 if __name__ == '__main__':
