@@ -3,6 +3,7 @@ import json
 import os
 import requests
 import sys
+from tqdm import tqdm
 
 from tabulate import tabulate
 
@@ -93,16 +94,18 @@ def main():
         curr_messages = curr_messages['response']['messages']
 
         print("Fetching %d messages..." % (num_total_messages))
+        pbar = tqdm(total=num_total_messages)
         while num_fetched_messages < num_total_messages:
             num_fetched_messages += len(curr_messages)
+            pbar.update(len(curr_messages))
             for message in curr_messages:
                 if message['sender_id'] not in people:
                     people[message['sender_id']] = {
                         'name': message['name'],
                         'avatar_url': message['avatar_url']
                     }
-                print("[%s] %s : %s" % (
-                    message['created_at'], message['name'], message['text']))
+                # print("[%s] %s : %s" % (
+                #    message['created_at'], message['name'], message['text']))
                 messages.append({
                     'author': message['sender_id'],
                     'created_at': message['created_at'],
@@ -127,6 +130,7 @@ def main():
             # TODO Check for validity of request
             curr_messages = curr_messages['response']['messages']
 
+        pbar.close()
         messages = list(reversed(messages))
 
         print("People:")

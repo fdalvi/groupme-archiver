@@ -28,6 +28,7 @@ dependencies:
   - sqlite=3.24.0=ha441bb4_0
   - tabulate=0.8.2=py37_0
   - tk=8.6.7=h35a86e2_3
+  - tqdm=4.24.0=py37_0
   - urllib3=1.23=py37_0
   - wheel=0.31.1=py37_0
   - xz=5.2.4=h1de35cc_4
