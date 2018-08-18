@@ -107,7 +107,6 @@ def css_file():
     /* Tooltip container */
     .tooltip {
         position: relative;
-        display: inline-block;
     }
 
     /* Tooltip text */
