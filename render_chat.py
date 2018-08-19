@@ -77,6 +77,8 @@ def css_file():
 
     .message {
         white-space: pre-line;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
 
     .system_message {
