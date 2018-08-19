@@ -1,8 +1,11 @@
 import argparse
+from datetime import datetime
 import glob
 import html
 import json
 import os
+import pytz
+import shutil
 import sys
 import time
 
@@ -16,7 +19,6 @@ FONT_URL = "https://fonts.googleapis.com/css?family=Open+Sans"
 def css_file():
     return """
     .message_container {
-        font-family: 'Open Sans', sans-serif;
         display: flex;
         flex-direction: row;
         padding-top: 5px;
@@ -115,6 +117,8 @@ def css_file():
         display: flex;
         flex-direction: row;
         justify-content: center;
+
+        font-family: 'Open Sans', sans-serif;
     }
 
     /* Tooltip container */
@@ -160,27 +164,27 @@ def css_file():
     """
 
 
-def render_time_message(page_elements, message, prev_time):
+def render_time_message(page_elements, message, prev_time, timezone=None):
     doc, tag, text = page_elements
 
     # Handle change in day
-    message_time = time.localtime(message['created_at'])
+    message_time = datetime.fromtimestamp(message['created_at'], timezone)
 
-    if prev_time is None or prev_time.tm_mday != message_time.tm_mday:
+    if prev_time is None or prev_time.day != message_time.day:
         with tag('div', klass='message_container'):
             doc.attr(style="background-color: #e4e4e4")
             with tag('span', klass='system_message'):
-                text(time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+                text(message_time.strftime('%b %d, %Y at %-I:%M %p'))
 
     return message_time
 
 
-def render_system_message(page_elements, message):
+def render_system_message(page_elements, message, timezone=None):
     doc, tag, text = page_elements
 
-    message_time = time.localtime(message['created_at'])
+    message_time = datetime.fromtimestamp(message['created_at'], timezone)
     with tag('div', klass='message_container'):
-        doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+        doc.attr(title=message_time.strftime('%b %d, %Y at %-I:%M %p'))
         doc.attr(style="background-color: #e4e4e4")
         with tag('span', klass='system_message'):
             text(message['text'] or '<ATTACHMENT>')
@@ -204,7 +208,7 @@ def render_avatar(input_dir, page_elements, people, message):
         text(shorthand)
 
 
-def render_message(input_dir, page_elements, people, message):
+def render_message(input_dir, page_elements, people, message, timezone=None):
     doc, tag, text = page_elements
 
     # Process mentions
@@ -213,9 +217,9 @@ def render_message(input_dir, page_elements, people, message):
         if a['type'] == "mentions":
             mentions += a['loci']
 
-    message_time = time.localtime(message['created_at'])
+    message_time = datetime.fromtimestamp(message['created_at'], timezone)
     with tag('div', klass='message_container'):
-        doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
+        doc.attr(title=message_time.strftime('%b %d, %Y at %-I:%M %p'))
         with tag('div', klass='avatar'):
             render_avatar(input_dir, page_elements, people, message)
         with tag('div', klass='message_box'):
@@ -274,10 +278,10 @@ def render_message(input_dir, page_elements, people, message):
         with tag('span', klass='likes'):
             if len(message['favorited_by']) > 0:
                 doc.attr(klass='likes tooltip')
-                doc.asis("<img src='../assets/heart-full.png'></img>")
+                doc.asis("<img src='assets/heart-full.png'></img>")
                 doc.text(len(message['favorited_by']))
             else:
-                doc.asis("<img src='../assets/heart.png'></img>")
+                doc.asis("<img src='assets/heart.png'></img>")
             with tag('div', klass='tooltiptext'):
                 for id in message['favorited_by']:
                     name = "Unknown"
@@ -290,6 +294,8 @@ def render_message(input_dir, page_elements, people, message):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input-dir', '-i', dest='input_dir', required=True)
+    parser.add_argument('--timezone', type=str,
+                        help="Timezone to render message times in.")
 
     args = parser.parse_args()
 
@@ -311,6 +317,10 @@ def main():
     page_elements = Doc().tagtext()
     doc, tag, text = page_elements
 
+    tz = None
+    if args.timezone:
+        tz = pytz.timezone(args.timezone)
+
     prev_time = None
     with tag('html'):
         with tag('head'):
@@ -326,16 +336,17 @@ def main():
                 for message in messages:
                     # Check and render time divider
                     prev_time = render_time_message(page_elements, message,
-                                                    prev_time)
+                                                    prev_time, tz)
 
                     # Check message type
                     if people[message['author']]['name'] == __SYSTEM__:
                         # Render system message
-                        render_system_message(page_elements, message)
+                        render_system_message(page_elements, message,
+                                              tz)
                     else:
                         # Render normal message
                         render_message(args.input_dir, page_elements, people,
-                                       message)
+                                       message, tz)
 
     # Save rendered files
     with open(os.path.join(args.input_dir, 'rendered.html'), 'w') as fp:
