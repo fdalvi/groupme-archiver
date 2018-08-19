@@ -1,4 +1,5 @@
 import argparse
+import glob
 import html
 import json
 import os
@@ -79,6 +80,16 @@ def css_file():
         white-space: pre-line;
         overflow-wrap: break-word;
         word-break: break-word;
+    }
+
+    .message > img {
+        max-width: 400px;
+        max-height: 400px;
+    }
+
+    .message > video {
+        max-width: 400px;
+        max-height: 400px;
     }
 
     .system_message {
@@ -175,11 +186,15 @@ def render_system_message(page_elements, message):
             text(message['text'] or '<ATTACHMENT>')
 
 
-def render_avatar(page_elements, people, message):
+def render_avatar(input_dir, page_elements, people, message):
     doc, tag, text = page_elements
 
-    avatar_path = people[message['author']].get('avatar_path', None)
-    if avatar_path:
+    avatar_url = people[message['author']]['avatar_url']
+    if avatar_url:
+        avatar_path = "%s.avatar" % (message['author'])
+        avatar_path = os.path.join('avatars', avatar_path)
+        avatar_path = glob.glob("%s/%s*" % (input_dir, avatar_path))[0]
+        avatar_path = "/".join(avatar_path.split('/')[-2:])
         doc.asis('<img src="%s"></img>' % (avatar_path))
     else:
         names = people[message['author']]['name'].split()
@@ -189,7 +204,7 @@ def render_avatar(page_elements, people, message):
         text(shorthand)
 
 
-def render_message(page_elements, people, message):
+def render_message(input_dir, page_elements, people, message):
     doc, tag, text = page_elements
 
     # Process mentions
@@ -202,29 +217,60 @@ def render_message(page_elements, people, message):
     with tag('div', klass='message_container'):
         doc.attr(title=time.strftime('%b %d, %Y at %-I:%M %p', message_time))
         with tag('div', klass='avatar'):
-            render_avatar(page_elements, people, message)
+            render_avatar(input_dir, page_elements, people, message)
         with tag('div', klass='message_box'):
             with tag('span', klass='user'):
                 text(people[message['author']]['name'])
-            with tag('span', klass='message'):
-                full_text = message['text'] or '<ATTACHMENT>'
-                text_parts = []
-                prev_end = 0
+            if len(message['attachments']) > 0:
+                for att in message['attachments']:
+                    if att['type'] == 'image' or \
+                       att['type'] == 'linked_image':
+                        image_path = att['url'].split('/')[-1]
+                        image_path = os.path.join('attachments', image_path)
+                        r = glob.glob("%s/%s*" % (input_dir, image_path))
+                        image_path = r[0]
+                        image_path = "/".join(image_path.split('/')[-2:])
+                        with tag('span', klass='message'):
+                            doc.asis('<img src="%s"></img>' % (
+                                image_path))
+                    elif att['type'] == 'video':
+                        video_path = att['url'].split('/')[-1]
+                        video_path = os.path.join('attachments', video_path)
+                        r = glob.glob("%s/%s*" % (input_dir, video_path))[0]
+                        video_path = r
+                        video_path = "/".join(video_path.split('/')[-2:])
+                        with tag('span', klass='message'):
+                            doc.asis('<video src="%s" controls></video>' % (
+                                video_path))
+            if message['text']:
+                with tag('span', klass='message'):
+                    _text = message['text']
 
-                for m in mentions:
-                    start = m[0]
-                    end = start + m[1]
+                    # Remove video urls
+                    for att in message['attachments']:
+                        if att['type'] == 'video':
+                            start_idx = _text.find(att['url'])
+                            end_idx = start_idx + len(att['url'])
+                            _text = _text[:start_idx] + _text[end_idx:]
 
-                    text_parts.append((full_text[prev_end:start], 'normal'))
-                    text_parts.append((full_text[start:end], 'bold'))
-                    prev_end = end
+                    # Split text into mentions and normal text
+                    text_parts = []
+                    prev_end = 0
 
-                text_parts.append((full_text[prev_end:], 'normal'))
+                    for m in mentions:
+                        start = m[0]
+                        end = start + m[1]
 
-                for t, style in text_parts:
-                    with tag('span'):
-                        doc.attr('style="font-weight: %s;"' % (style))
-                        text(t)
+                        text_parts.append((_text[prev_end:start], 'normal'))
+                        text_parts.append((_text[start:end], 'bold'))
+                        prev_end = end
+
+                    text_parts.append((_text[prev_end:], 'normal'))
+
+                    for t, style in text_parts:
+                        with tag('span'):
+                            doc.attr('style="font-weight: %s;"' % (style))
+                            text(t)
         with tag('span', klass='likes'):
             if len(message['favorited_by']) > 0:
                 doc.attr(klass='likes tooltip')
@@ -288,7 +334,8 @@ def main():
                         render_system_message(page_elements, message)
                     else:
                         # Render normal message
-                        render_message(page_elements, people, message)
+                        render_message(args.input_dir, page_elements, people,
+                                       message)
 
     # Save rendered files
     with open(os.path.join(args.input_dir, 'rendered.html'), 'w') as fp:
