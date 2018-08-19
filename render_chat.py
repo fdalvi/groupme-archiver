@@ -355,6 +355,13 @@ def main():
     with open(os.path.join(args.input_dir, 'main.css'), 'w') as fp:
         fp.write(css_file())
 
+    root_path = os.path.realpath(__file__)
+    assets_dir = os.path.join(os.path.dirname(root_path), 'assets')
+    project_assets_dir = os.path.join(args.input_dir, 'assets')
+    os.makedirs(project_assets_dir, exist_ok=True)
+    shutil.copy(os.path.join(assets_dir, 'heart.png'), project_assets_dir)
+    shutil.copy(os.path.join(assets_dir, 'heart-full.png'), project_assets_dir)
+
 
 if __name__ == '__main__':
     main()
