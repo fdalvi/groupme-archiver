@@ -1,4 +1,5 @@
 import argparse
+import glob
 import json
 import os
 import requests
@@ -126,10 +127,11 @@ def main():
         group_info['created_at'] = response['created_at']
 
         for member in response['members']:
-            people[member['user_id']] = {
-                'name': member['nickname'],
-                'avatar_url': member['image_url']
-            }
+            people[member['user_id']] = {'name': member['nickname']}
+            if args.save_global_avatars:
+                people[member['user_id']]['avatar_url'] = member['image_url']
+            else:
+                people[member['user_id']]['avatar_url'] = None
 
         url = 'https://api.groupme.com/v3/groups/%s/messages' % (
                args.group_chat_id)
@@ -141,6 +143,7 @@ def main():
         num_total_messages = curr_messages['response']['count']
         num_fetched_messages = 0
         curr_messages = curr_messages['response']['messages']
+        all_attachments = []
 
         print("Fetching %d messages..." % (num_total_messages))
         pbar = tqdm(total=num_total_messages)
@@ -153,9 +156,16 @@ def main():
                         'name': message['name'],
                         'avatar_url': message['avatar_url']
                     }
-                if not args.save_global_avatars:
+                if not args.save_global_avatars and \
+                   people[message['sender_id']]['avatar_url'] is None:
                     people[message['sender_id']]['avatar_url'] = \
                         message['avatar_url']
+
+                for att in message['attachments']:
+                    if att['type'] == 'image' or \
+                       att['type'] == 'video' or \
+                       att['type'] == 'linked_image':
+                        all_attachments.append(att['url'])
                 # print("[%s] %s : %s" % (
                 #    message['created_at'], message['name'], message['text']))
                 messages.append({
@@ -187,19 +197,35 @@ def main():
         messages = list(reversed(messages))
 
         print("\nFetching avatars...")
-        os.makedirs(os.path.join(args.output_dir, 'avatars/'), exist_ok=True)
+        avatars_path = os.path.join(args.output_dir, 'avatars/')
+        os.makedirs(avatars_path, exist_ok=True)
         for k, v in tqdm(people.items()):
             url = v['avatar_url']
             if url:
                 r = requests.get("%s.avatar" % (url))
                 img_type = r.headers['content-type'].split('/')[1]
-                avatar_path = 'avatars/%s.avatar.%s' % (k, img_type)
-                avatar_full_path = os.path.join(args.output_dir, avatar_path)
-                with open(avatar_full_path, 'wb') as fp:
+                avatar_path = os.path.join(avatars_path,
+                                           '%s.avatar.%s' % (k, img_type))
+                with open(avatar_path, 'wb') as fp:
                     fp.write(r.content)
-                people[k]['avatar_path'] = avatar_path
 
-        print("People:")
+        print("\nFetching attachments...")
+        attachments_path = os.path.join(args.output_dir, 'attachments/')
+        os.makedirs(attachments_path, exist_ok=True)
+        for att_url in tqdm(all_attachments):
+            file_name = att_url.split('/')[-1]
+            att_path = 'attachments/%s.%s' % (file_name, "*")
+            att_full_path = os.path.join(args.output_dir, att_path)
+            if len(glob.glob(att_full_path)) == 0:
+                r = requests.get(att_url)
+                img_type = r.headers['content-type'].split('/')[1]
+                att_path = 'attachments/%s.%s' % (file_name, img_type)
+                att_full_path = os.path.join(args.output_dir, att_path)
+
+                with open(att_full_path, 'wb') as fp:
+                    fp.write(r.content)
+
+        print("\nPeople:")
         table_headers = {
             "id": "ID",
             "name": "Name",
@@ -215,15 +241,15 @@ def main():
 
         # Save people
         with open(people_file, 'w', encoding='utf-8') as fp:
-            json.dump(people, fp, ensure_ascii=False)
+            json.dump(people, fp, ensure_ascii=False, indent=2)
 
         # Save messages
         with open(messages_file, 'w', encoding='utf-8') as fp:
-            json.dump(messages, fp, ensure_ascii=False)
+            json.dump(messages, fp, ensure_ascii=False, indent=2)
 
         # Save group information
         with open(group_info_file, 'w', encoding='utf-8') as fp:
-            json.dump(group_info, fp, ensure_ascii=False)
+            json.dump(group_info, fp, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':
