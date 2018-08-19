@@ -327,6 +327,9 @@ def main():
             doc.asis('<meta charset="utf-8">')
             doc.asis('<link href="%s" rel="stylesheet">' % (FONT_URL))
             doc.asis('<link rel="stylesheet" href="main.css">')
+
+            with tag('title'):
+                text('GroupMe archive - %s' % (group_info['name']))
         with tag('body'):
             with tag('div', id='container'):
                 with tag('h1'):
