@@ -103,12 +103,6 @@ def main():
         table_headers = ["Chat Name", "ID", "Number of messages"]
         print(tabulate(chats, headers=table_headers))
     else:
-        if not args.output_dir:
-            print("Please specify an output directory.")
-            sys.exit(1)
-
-        os.makedirs(args.output_dir, exist_ok=True)
-
         params = {
             'token': args.token
         }
@@ -132,6 +126,14 @@ def main():
                 people[member['user_id']]['avatar_url'] = member['image_url']
             else:
                 people[member['user_id']]['avatar_url'] = None
+
+        output_dir = args.output_dir
+        if not output_dir:
+            output_dir = group_info['name']
+            output_dir = output_dir.replace('/', ' ')
+            output_dir = output_dir.replace('.', ' ')
+
+        os.makedirs(output_dir, exist_ok=True)
 
         url = 'https://api.groupme.com/v3/groups/%s/messages' % (
                args.group_chat_id)
@@ -197,7 +199,7 @@ def main():
         messages = list(reversed(messages))
 
         print("\nFetching avatars...")
-        avatars_path = os.path.join(args.output_dir, 'avatars/')
+        avatars_path = os.path.join(output_dir, 'avatars/')
         os.makedirs(avatars_path, exist_ok=True)
         for k, v in tqdm(people.items()):
             url = v['avatar_url']
@@ -210,17 +212,17 @@ def main():
                     fp.write(r.content)
 
         print("\nFetching attachments...")
-        attachments_path = os.path.join(args.output_dir, 'attachments/')
+        attachments_path = os.path.join(output_dir, 'attachments/')
         os.makedirs(attachments_path, exist_ok=True)
         for att_url in tqdm(all_attachments):
             file_name = att_url.split('/')[-1]
             att_path = 'attachments/%s.%s' % (file_name, "*")
-            att_full_path = os.path.join(args.output_dir, att_path)
+            att_full_path = os.path.join(output_dir, att_path)
             if len(glob.glob(att_full_path)) == 0:
                 r = requests.get(att_url)
                 img_type = r.headers['content-type'].split('/')[1]
                 att_path = 'attachments/%s.%s' % (file_name, img_type)
-                att_full_path = os.path.join(args.output_dir, att_path)
+                att_full_path = os.path.join(output_dir, att_path)
 
                 with open(att_full_path, 'wb') as fp:
                     fp.write(r.content)
@@ -235,9 +237,9 @@ def main():
                        headers=table_headers))
 
         # Save everything
-        people_file = os.path.join(args.output_dir, "people.json")
-        messages_file = os.path.join(args.output_dir, "messages.json")
-        group_info_file = os.path.join(args.output_dir, "group_info.json")
+        people_file = os.path.join(output_dir, "people.json")
+        messages_file = os.path.join(output_dir, "messages.json")
+        group_info_file = os.path.join(output_dir, "group_info.json")
 
         # Save people
         with open(people_file, 'w', encoding='utf-8') as fp:
