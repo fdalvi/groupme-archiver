@@ -35,6 +35,36 @@ def list_groups(args):
     return chats
 
 
+def list_dms(args):
+    headers = {'Content-Type': 'application/json'}
+    page_num = 1
+    listing_complete = False
+
+    chats = []
+    while not listing_complete:
+        params = {
+            'token': args.token,
+            'page':  page_num
+        }
+        r = requests.get('https://api.groupme.com/v3/chats',
+                         headers=headers, params=params)
+
+        current_chats = json.loads(r.content)
+
+        for chat in current_chats['response']:
+            chats.append((
+                        chat['other_user']['name'],
+                        chat['other_user']['id'],
+                        chat['messages_count']
+                        ))
+
+        page_num += 1
+        if len(current_chats['response']) == 0:
+            listing_complete = True
+
+    return chats
+
+
 def main():
     parser = argparse.ArgumentParser(description="""GroupMe chats archiver.
         By default, the app will list all of your chats that are currently
@@ -43,7 +73,8 @@ def main():
 
     parser.add_argument('--token', '-t', required=True,
                         help="GroupMe Developer Token")
-    parser.add_argument('--chat', '-c', help="Chat ID to archive")
+    parser.add_argument('--group-chat-id', '-g', dest="group_chat_id",
+                        help="Group chat ID to archive")
     parser.add_argument('--num-messages-per-request', '-n', default=20,
                         dest='num_messages_per_request',
                         help="Number of messages in each request. Max: 100.")
@@ -52,12 +83,22 @@ def main():
 
     parser.add_argument('--save-global-avatars', action='store_true',
                         dest='save_global_avatars',
-                        help="Use global instead of chat specific user avatars")
+                        help="Use global avatars instead of " +
+                             "chat specific user avatars")
 
     args = parser.parse_args()
 
-    if not args.chat:
+    if not args.group_chat_id:
+        print("Group chats")
+        print("===========")
         chats = list_groups(args)
+        table_headers = ["Chat Name", "ID", "Number of messages"]
+        print(tabulate(chats, headers=table_headers))
+
+        print("")
+        print("Direct Messages")
+        print("===============")
+        chats = list_dms(args)
         table_headers = ["Chat Name", "ID", "Number of messages"]
         print(tabulate(chats, headers=table_headers))
     else:
@@ -70,7 +111,7 @@ def main():
         params = {
             'token': args.token
         }
-        url = 'https://api.groupme.com/v3/groups/%s' % (args.chat)
+        url = 'https://api.groupme.com/v3/groups/%s' % (args.group_chat_id)
         r = requests.get(url, params=params)
 
         people = {}
@@ -90,7 +131,8 @@ def main():
                 'avatar_url': member['image_url']
             }
 
-        url = 'https://api.groupme.com/v3/groups/%s/messages' % (args.chat)
+        url = 'https://api.groupme.com/v3/groups/%s/messages' % (
+               args.group_chat_id)
         r = requests.get(url, params=params)
 
         curr_messages = json.loads(r.content)
@@ -112,7 +154,8 @@ def main():
                         'avatar_url': message['avatar_url']
                     }
                 if not args.save_global_avatars:
-                    people[message['sender_id']]['avatar_url'] = message['avatar_url']
+                    people[message['sender_id']]['avatar_url'] = \
+                        message['avatar_url']
                 # print("[%s] %s : %s" % (
                 #    message['created_at'], message['name'], message['text']))
                 messages.append({
@@ -129,7 +172,8 @@ def main():
                 'before_id': last_message_id,
                 'limit': args.num_messages_per_request
             }
-            url = 'https://api.groupme.com/v3/groups/%s/messages' % (args.chat)
+            url = 'https://api.groupme.com/v3/groups/%s/messages' % (
+                   args.group_chat_id)
             r = requests.get(url, params=params)
 
             if r.status_code == 304:
@@ -150,7 +194,8 @@ def main():
                 r = requests.get("%s.avatar" % (url))
                 img_type = r.headers['content-type'].split('/')[1]
                 avatar_path = 'avatars/%s.avatar.%s' % (k, img_type)
-                with open(os.path.join(args.output_dir, avatar_path), 'wb') as fp:
+                avatar_full_path = os.path.join(args.output_dir, avatar_path)
+                with open(avatar_full_path, 'wb') as fp:
                     fp.write(r.content)
                 people[k]['avatar_path'] = avatar_path
 
