@@ -19,8 +19,14 @@ Archive/Backup and Render GroupMe chats as JSON and HTML! GroupMe provides an [a
 - Support for user avatars, _favorited by_ lists and mentions
 - Support for image, linked images and video attachment types
 
+<p align="center">
+
+![Sample Render](/docs/render.jpg?raw=true "Sample group chat render. Faces from https://randomuser.me/photos and Fake names from https://uinames.com.")
+
+</p>
+
 ## Installation
-For setting up the dependencies, simple run:
+All of the scripts are written using `Python3`, so you'll need it to run them. For setting up the dependencies, simple run:
 
 ```bash
 conda env create -f conda-environment.yml
@@ -77,3 +83,5 @@ The `render_chat.py` has an extra option:
 - [ ] Archiving: Better error handling for mismatched ID's and failed API requests
 - [ ] Render: Support for custom GroupMe emoji packs
 - [x] Render: Support for multiple image/video attachments per message
+
+Feel free to open an issue with any bugs you encounter!
